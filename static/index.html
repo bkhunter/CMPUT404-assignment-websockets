@@ -27,7 +27,8 @@
     <canvas id="c" width="100%" height="100%" style="-webkit-tap-highlight-color: transparent;"></canvas> 
 
     <script>
-      // Fix me
+
+      // Fixed
 var canvas = document.getElementById('c');
 var host = window.location.host;
 var context = canvas.getContext("2d");
@@ -35,6 +36,12 @@ var W = canvas.width  = window.innerWidth-6;
 var H = canvas.height = window.innerHeight-50;
 var wscounter = 0;
 var socket;
+
+var colors0 = ['#192433','#204442','#6A9B9B','#91A5DB','#929DFF'];
+var colors1 = ['#0BBE30','#07F674','#63E195','#A46599','#724987'];
+var colorIndex = 0; 
+var colorCount = 1;
+var colors = colors0; 
 
 function debug(str) {
     var debugDiv = document.getElementById('debug');
@@ -44,20 +51,58 @@ debug("Test");
 
 world = {};
 
-//XXX: TODO Make this prettier!
-function drawCircle(context,entity) {
+// //XXX: TODO Make this prettier!
+// function drawCircle(context,entity) {
+//     with(context) {
+//         beginPath();                
+//         lineWidth = 3;
+//         var x = entity["x"];
+//         var y = entity["y"];
+//         //moveTo(x,y);
+//         fillStyle = entity["colour"];
+//         strokeStyle = fillStyle;
+//         arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
+//         stroke();                                
+//     }
+// }
+
+// Draws the pretty lines
+function drawLines(context,entity) {
     with(context) {
-        beginPath();                
-        lineWidth = 3;
+        beginPath();
         var x = entity["x"];
         var y = entity["y"];
-        //moveTo(x,y);
-        fillStyle = entity["colour"];
-        strokeStyle = fillStyle;
-        arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
-        stroke();                                
+	//create gardient
+	var grd = createLinearGradient(x,y,x+50,y+50);
+	grd.addColorStop(0.3,entity["colour"]);
+	grd.addColorStop(1,"white");
+	fillStyle = grd;
+	strokeStyle = fillStyle;	
+	lineWidth = 4;
+        moveTo(x,y);
+        lineTo(x+50,y+50);
+	stroke();
     }
 }
+
+
+// helper function that initializes the lines with changing pretty colours
+function getNextColor() {
+    colorIndex += 1;
+    if (colorIndex >= colors.length) {
+	if (colorCount%2 === 0) {
+	    colors = colors1;
+	    colorCount = 1;
+	} else {
+	    colors = colors0;
+	    colorCount = 0;
+	}
+	    
+	colorIndex = 0;
+    }
+    return colors[colorIndex];
+}
+
 
 function prepEntity(entity) {
     if (!entity["colour"]) {
@@ -83,7 +128,7 @@ function renderFrame() {
     clearFrame();
     for (var key in world) {
         var entity = world[key];
-        drawCircle(context,prepEntity(entity));
+        drawLines(context,prepEntity(entity));
     }
 }
 
@@ -123,8 +168,9 @@ function getPosition(e) {
 
 function addEntity(entity, data) {
     world[entity] = data;
-    drawNextFrame(); // (but should we?)
-    //XXX: Send a XHTML Request that updates the entity you just modified!
+    var entityObject = {};
+    entityObject[entity] = data
+    socket.send( JSON.stringify(entityObject) );
 }
 var counter = 0;
 function addEntityWithoutName(data) {
@@ -231,15 +277,15 @@ mouse = (function() {
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getNextColor(),'radius':50});
 });
 
 mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getNextColor(),'radius':50});
 });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
+    addEntityWithoutName({'x':x,'y':y,'colour':getNextColor(),
                           'radius':10});
 });
 
@@ -252,16 +298,26 @@ function update() {
 function wsSetup() {
     var url = "ws://"+host+"/subscribe";   
     socket = new WebSocket(url);
+
     socket.onopen = function() {
-        //XXX: TODO What are you going to do here?
+	socket.send("begin");
     };
+
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
     };
+
     socket.onmessage = function(msg) {  
         try {
-            debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            //debug("WebSocket Recv:" + msg.data);
+	    var message = JSON.parse(msg.data);
+	    var dataArray = Object.keys(message);
+	    for (entity in dataArray) {
+		
+	    	world[dataArray[entity]] = message[dataArray[entity]]
+	    }
+	    drawNextFrame();
+	    
         } catch (e) {
             alert("socket on message: " + e);
         }
@@ -269,9 +325,6 @@ function wsSetup() {
 }
 
 wsSetup();
-
-
-
 
 // 30 frames per second
 setInterval( update, 1000/30.0);
