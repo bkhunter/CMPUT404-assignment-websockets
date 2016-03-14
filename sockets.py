@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 # Copyright (c) 2013-2014 Abram Hindle
+# Copyright (c) 2016 Ben Hunter
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# Several design and implementation inspirations Taken from Abram Hindle's
+# CMPUT404 websockets examples
+# https://github.com/abramhindle/WebSocketsExamples
+#
+
 import flask
 from flask import Flask, request
 from flask_sockets import Sockets
@@ -26,14 +32,11 @@ app = Flask(__name__)
 sockets = Sockets(app)
 app.debug = True
 
+# World modifed such that it doesn't use listeners
+# Clients used instead
 class World:
     def __init__(self):
         self.clear()
-        # we've got listeners now!
-        # self.listeners = list()
-        
-    def add_set_listener(self, listener):
-        self.listeners.append( listener )
 
     def update(self, entity, key, value):
         entry = self.space.get(entity,dict())
@@ -52,9 +55,7 @@ class World:
     def world(self):
         return self.space
 
-
-# Taken from Abram Hindle c404 websockets examples
-# https://github.com/abramhindle/WebSocketsExamples
+# Instead of listeners
 class Client:
     def __init__(self):
         self.queue = queue.Queue()
@@ -65,14 +66,11 @@ class Client:
     def get(self):
         return self.queue.get()
 
+# create the world, and a container for clients
 myWorld = World()  
 clientList = []      
 
-# def set_listener( entity, data ):
-#     ''' do something with the update ! '''
 
-# myWorld.add_set_listener( set_listener )
-        
 @app.route('/')
 def hello():
     return flask.redirect("/static/index.html")
@@ -80,18 +78,16 @@ def hello():
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
 
-    # Read from the websocket, update the client queue
-
-    # Inspired by Abram Hindle c404 websockets examples
-    # https://github.com/abramhindle/WebSocketsExamples
     try:
         while True:
             msg = ws.receive()
             print "WS RECV: %s" % msg
             if (msg is not None):
+                # Method used to share the world on a refresh
                 if msg == 'begin':
                     client.put(json.dumps(myWorld.world()))
                 else:
+                    # regular use
                     packet = json.loads(msg)
                     for client in clientList:
                         client.put( json.dumps(packet) )
@@ -155,19 +151,16 @@ def update(entity):
 
 @app.route("/world", methods=['POST','GET'])    
 def world():
-    '''you should probably return the world here'''
     return flask.jsonify(myWorld.world())
 
 @app.route("/entity/<entity>")    
 def get_entity(entity):
-    '''This is the GET version of the entity interface, return a representation of the entity'''
     ent = myWorld.get(entity)
     return flask.jsonify(ent)
 
 
 @app.route("/clear", methods=['POST','GET'])
 def clear():
-    '''Clear the world out!'''
     myWorld.clear()
     return flask.jsonify(myWorld.world())
 
