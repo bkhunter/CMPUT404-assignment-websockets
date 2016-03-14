@@ -90,5 +90,5 @@ Contributors
 
 Resources Used
 ============
-** CMPUT 404 Course materials by Abram Hindle and Joshua Campbell
+* CMPUT 404 Course materials by Abram Hindle and Joshua Campbell
   * Particularily the web socket examples found at: https://github.com/abramhindle/WebSocketsExamples
